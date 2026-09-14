@@ -1,0 +1,145 @@
+@import url('https://fonts.googleapis.com/css2?family=Caveat:wght@400;600;700&family=Cormorant+Garamond:ital,wght@0,400;0,500;0,600;0,700;1,400;1,500&family=DM+Sans:ital,opsz,wght@0,9..40,400;0,9..40,500;0,9..40,600;1,9..40,400&family=Great+Vibes&family=Playfair+Display:ital,wght@0,500;0,600;0,700;1,500&display=swap');
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+  --invly-ivory: #faf8f5;
+  --invly-cream: #f5f0e8;
+  --invly-warm-white: #fffdf9;
+  --invly-beige: #e8dfd2;
+  --invly-champagne: #c9a96e;
+  --invly-gold: #b8945a;
+  --invly-charcoal: #2c2420;
+  --invly-brown: #5c4a3d;
+  font-family: 'DM Sans', ui-sans-serif, system-ui, sans-serif;
+  line-height: 1.55;
+  font-weight: 400;
+  font-synthesis: none;
+  text-rendering: optimizeLegibility;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background-color: var(--invly-ivory);
+  color: var(--invly-charcoal);
+}
+
+html.dark body {
+  background-color: #1a1512;
+  background-image:
+    radial-gradient(ellipse at 20% 0%, rgba(201, 169, 110, 0.08) 0%, transparent 50%),
+    radial-gradient(ellipse at 80% 100%, rgba(92, 74, 61, 0.25) 0%, transparent 55%);
+  color: #f5f0e8;
+}
+
+html.dark body:has(.invitation-scope) {
+  background-color: var(--invly-ivory);
+  background-image: none;
+  color: var(--invly-charcoal);
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body, #root {
+  min-width: 0;
+  max-width: 100%;
+}
+
+.invitation-scope,
+.invitation-scope * {
+  max-width: 100%;
+  min-width: 0;
+}
+
+.invitation-scope {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
+}
+
+.invitation-scope h1,
+.invitation-scope h2,
+.invitation-scope h3,
+.invitation-scope h4,
+.invitation-scope p,
+.invitation-scope li,
+.invitation-scope span,
+.invitation-scope div,
+.invitation-scope button,
+.invitation-scope a {
+  overflow-wrap: anywhere;
+  word-break: break-word;
+}
+
+.invitation-scope img,
+.invitation-scope iframe,
+.invitation-scope svg,
+.invitation-scope video {
+  max-width: 100%;
+  height: auto;
+  display: block;
+}
+
+@media (max-width: 480px) {
+  .invitation-scope {
+    letter-spacing: -0.01em;
+  }
+
+  .invitation-scope h1,
+  .invitation-scope h2,
+  .invitation-scope h3 {
+    line-height: 1.08;
+  }
+}
+
+.font-cormorant,
+.font-serif {
+  font-family: 'Cormorant Garamond', 'Playfair Display', Georgia, serif;
+}
+
+.font-playfair {
+  font-family: 'Playfair Display', 'Cormorant Garamond', Georgia, serif;
+}
+
+.font-inter,
+.font-sans {
+  font-family: 'DM Sans', Inter, ui-sans-serif, system-ui, sans-serif;
+}
+
+.font-handwriting {
+  font-family: 'Caveat', cursive, sans-serif;
+}
+
+.font-script {
+  font-family: 'Great Vibes', 'Playfair Display', cursive, serif;
+}
+
+::selection {
+  background: rgba(201, 169, 110, 0.35);
+  color: #2c2420;
+}
+
+.invitation-scope {
+  color-scheme: light !important;
+}
+
+.phone-scroll {
+  overscroll-behavior: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.scrollbar-hidden {
+  -ms-overflow-style: none;
+  scrollbar-width: none;
+}
+
+.scrollbar-hidden::-webkit-scrollbar {
+  display: none;
+}

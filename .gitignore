@@ -1,0 +1,10 @@
+node_modules
+.dist
+.vite
+dist
+.env
+.env.local
+coverage
+.DS_Store
+cookie*.txt
+*.log
