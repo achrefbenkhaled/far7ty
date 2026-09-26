@@ -1,3 +1,5 @@
+import GtaMapViewer from '../components/GtaMapViewer';
+import { invitationCoordinates } from '../lib/mapsLocation';
 import React, { useEffect, useRef, useState, useMemo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import {
@@ -6,8 +8,7 @@ import {
   MapPin,
   Sparkles,
   Heart,
-  Send,
-  ExternalLink,
+  Send,
   ChevronDown,
   Gift,
   Volume2,
@@ -16,8 +17,7 @@ import {
   CheckCircle2,
   PartyPopper,
   X,
-  Users,
-  Compass,
+  Users,
   Crown,
   MailOpen,
 } from 'lucide-react';
@@ -238,6 +238,7 @@ export default function MagicBirthdayTemplate({
   const mapsUrl =
     (invitationData?.mapsUrl as string) ||
     `https://maps.google.com/?q=${encodeURIComponent(venueName + ' ' + addressDetails)}`;
+  const destination = invitationCoordinates(invitationData);
 
   const mainDescription =
     (invitationData?.description as string) ||
@@ -948,17 +949,6 @@ export default function MagicBirthdayTemplate({
                   {/* Action Buttons */}
                   <div className="mt-3 flex flex-wrap gap-2">
                     <a
-                      href={mapsUrl}
-                      target="_blank"
-                      rel="noreferrer"
-                      className="inline-flex items-center gap-2 rounded-full border border-[#d6a754]/40 bg-[#d6a754]/15 px-3.5 py-1.5 text-xs font-semibold text-[#f5d88a] transition hover:bg-[#d6a754]/30"
-                    >
-                      <Compass className="h-3.5 w-3.5" />
-                      <span>📍 Voir l’itinéraire</span>
-                      <ExternalLink className="h-3 w-3 text-[#d6a754]" />
-                    </a>
-
-                    <a
                       href={`https://calendar.google.com/calendar/render?action=TEMPLATE&text=${encodeURIComponent(`Anniversaire de ${celebrantName}`)}&details=${encodeURIComponent(mainDescription)}&location=${encodeURIComponent(venueName + ', ' + addressDetails)}`}
                       target="_blank"
                       rel="noreferrer"
@@ -969,6 +959,20 @@ export default function MagicBirthdayTemplate({
                     </a>
                   </div>
                 </div>
+              </div>
+
+              <div className="mt-4 w-full">
+                <GtaMapViewer
+                  locationQuery={venueName || addressDetails}
+                  title={venueName}
+                  locationName={venueName}
+                  address={addressDetails}
+                  googleMapsUrl={mapsUrl}
+                  latitude={destination?.latitude}
+                  longitude={destination?.longitude}
+                  theme="dark"
+                  isRtl={false}
+                />
               </div>
             </motion.div>
           </section>
@@ -1493,3 +1497,4 @@ export default function MagicBirthdayTemplate({
     </div>
   );
 }
+

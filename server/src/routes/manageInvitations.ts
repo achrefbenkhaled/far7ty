@@ -4,6 +4,7 @@ import { z } from 'zod';
 import type { Prisma } from '@prisma/client';
 import { prisma } from '../lib/prisma.js';
 import { ownerAuth } from '../middleware/ownerAuth.js';
+import { enrichInvitationLocationData } from '../lib/mapsLocation.js';
 
 const router = Router();
 const statuses = ['DRAFT', 'PREVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'PUBLISHED'] as const;
@@ -40,7 +41,8 @@ router.post('/', async (request, response) => {
   const parsed = invitationSchema.safeParse(request.body);
   if (!parsed.success) return response.status(400).json({ message: 'Invalid invitation data', issues: parsed.error.flatten() });
   const slug = await uniqueSlug(parsed.data.slug ?? `${parsed.data.clientName}-${parsed.data.templateId}`);
-  const invitation = await prisma.invitation.create({ data: { ...parsed.data, slug, previewToken: crypto.randomBytes(24).toString('hex'), clientEmail: parsed.data.clientEmail || null, data: toJsonInput(parsed.data.data) } });
+  const data = toJsonInput(await enrichInvitationLocationData(parsed.data.data));
+  const invitation = await prisma.invitation.create({ data: { ...parsed.data, slug, previewToken: crypto.randomBytes(24).toString('hex'), clientEmail: parsed.data.clientEmail || null, data } });
   return response.status(201).json({ invitation });
 });
 
@@ -55,7 +57,10 @@ router.patch('/:id', async (request, response) => {
   const current = await prisma.invitation.findUnique({ where: { id: request.params.id } });
   if (!current) return response.status(404).json({ message: 'Invitation not found' });
   const slug = parsed.data.slug ? await uniqueSlug(parsed.data.slug, current.id) : current.slug;
-  const invitation = await prisma.invitation.update({ where: { id: current.id }, data: { ...parsed.data, slug, clientEmail: parsed.data.clientEmail === '' ? null : parsed.data.clientEmail, data: toJsonInput(parsed.data.data ?? current.data) } });
+  const nextData = parsed.data.data
+    ? await enrichInvitationLocationData(parsed.data.data)
+    : current.data;
+  const invitation = await prisma.invitation.update({ where: { id: current.id }, data: { ...parsed.data, slug, clientEmail: parsed.data.clientEmail === '' ? null : parsed.data.clientEmail, data: toJsonInput(nextData) } });
   return response.json({ invitation });
 });
 

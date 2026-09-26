@@ -122,6 +122,7 @@ export const eventFieldSchemas: EventSchemaMap = {
           { key: 'title', label: 'Event Title (عنوان الفقرة)', type: 'text', required: true, placeholder: 'Cérémonie / استقبال الضيوف' },
           { key: 'description', label: 'Description (التفاصيل)', type: 'textarea', placeholder: 'Détails de la cérémonie / ترحيب بالأهل' },
           { key: 'location', label: 'Location (اختياري)', type: 'text', placeholder: 'Salle principale' },
+          { key: 'mapQuery', label: 'Google Maps Link / Address (رابط الخريطة أو العنوان)', type: 'text', placeholder: 'https://maps.app.goo.gl/... أو العنوان' },
         ],
       },
       {
@@ -515,6 +516,7 @@ export const defaultEventTypeByTemplate: Record<string, EventType> = {
   'modern-bloom': 'birthday',
   'corporate-luxe': 'graduation',
   'midnight-gala': 'gala',
+  'petal-bloom-wedding': 'wedding',
 };
 
 export function defaultDynamicDataForEvent(eventType: EventType) {
@@ -544,6 +546,8 @@ export const baseInvitationDataSchema = z.object({
   venue: z.string().optional(),
   address: z.string().optional(),
   mapsUrl: z.string().optional().or(z.literal('')),
+  mapsLatitude: z.number().nullable().optional(),
+  mapsLongitude: z.number().nullable().optional(),
   description: z.string().optional(),
   whatsappPhone: z.string().optional(),
   gallery: z.array(z.string()).default([]),

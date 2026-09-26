@@ -5,6 +5,7 @@ import { QueryClient, QueryClientProvider } from '@tanstack/react-query';
 import App from './App';
 import { LanguageThemeProvider } from './context/LanguageThemeContext';
 import { ManageAuthProvider } from './context/ManageAuthContext';
+import { UserAuthProvider } from './context/UserAuthContext';
 import './styles.css';
 
 const queryClient = new QueryClient();
@@ -14,11 +15,14 @@ ReactDOM.createRoot(document.getElementById('root')!).render(
     <QueryClientProvider client={queryClient}>
       <LanguageThemeProvider>
         <ManageAuthProvider>
-          <BrowserRouter>
-            <App />
-          </BrowserRouter>
+          <UserAuthProvider>
+            <BrowserRouter>
+              <App />
+            </BrowserRouter>
+          </UserAuthProvider>
         </ManageAuthProvider>
       </LanguageThemeProvider>
     </QueryClientProvider>
   </React.StrictMode>
 );
+

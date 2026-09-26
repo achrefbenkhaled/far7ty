@@ -1,3 +1,5 @@
+import GtaMapViewer from '../components/GtaMapViewer';
+import { invitationCoordinates } from '../lib/mapsLocation';
 import React, { useEffect, useState, useRef, useMemo } from 'react';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useLanguageTheme } from '../context/LanguageThemeContext';
@@ -10,8 +12,7 @@ import {
   Clock,
   MapPin,
   Send,
-  Sparkles,
-  Navigation,
+  Sparkles,
   ChevronDown,
   Scroll,
 } from 'lucide-react';
@@ -123,6 +124,7 @@ export default function CorporateLuxeTemplate({ preview = false, invitationData 
   const venueName = (invitationData?.venue as string) || 'قاعة القصر الكبرى للاحتفالات والمؤتمرات';
   const venueAddress = (invitationData?.address as string) || 'طريق التميز الأكاديمي، حي النخيل، الرياض';
   const mapsUrl = (invitationData?.mapsUrl as string) || 'https://maps.google.com/?q=graduation+hall';
+  const destination = invitationCoordinates(invitationData);
 
   const customDescription = (invitationData?.description as string) ||
     'بمشاعر الفخر والاعتزاز وبتوفيق من الله العلي القدير، يسرنا دعوتكم لمشاركتنا فرحة تخرج نجلنا واحتفالنا بنيله درجة البكالوريوس مع مرتبة الشرف، لتكتمل سعادتنا وتتوج جهودنا بحضوركم ومشاركتكم الكريمة.';
@@ -624,16 +626,18 @@ export default function CorporateLuxeTemplate({ preview = false, invitationData 
             {venueAddress}
           </p>
 
-          <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a
-              href={mapsUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full bg-[#111111] text-white hover:bg-black px-7 py-3 text-xs font-black uppercase tracking-wider shadow-md transition hover:scale-105"
-            >
-              <Navigation className="h-4 w-4 text-[#D4AF37]" />
-              <span>{isArabic ? 'فتح في خرائط جوجل' : 'Open in Google Maps'}</span>
-            </a>
+          <div className="mt-6">
+            <GtaMapViewer
+              locationQuery={venueAddress || venueName}
+              title={venueName}
+              locationName={venueName}
+              address={venueAddress}
+              googleMapsUrl={mapsUrl}
+              latitude={destination?.latitude}
+              longitude={destination?.longitude}
+              theme="dark"
+              isRtl={isArabic}
+            />
           </div>
         </motion.section>
 
@@ -760,3 +764,5 @@ export default function CorporateLuxeTemplate({ preview = false, invitationData 
     </div>
   );
 }
+
+

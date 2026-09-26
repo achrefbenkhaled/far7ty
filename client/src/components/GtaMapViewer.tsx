@@ -1,8 +1,17 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { MapPin, Compass, ExternalLink, Crosshair, Navigation, Check, Copy, Car } from 'lucide-react';
 import L from 'leaflet';
 import 'leaflet/dist/leaflet.css';
+import { loadGoogleMapsApi } from '../lib/googleMapsLoader';
+import { resolveMapsLocationRequest } from '../lib/mapsApi';
+import {
+  buildGoogleMapsDirectionsUrl,
+  extractCoordinatesFromMapsUrl,
+  isValidCoordinates,
+  parseCoordinate,
+  type GeoCoordinates,
+} from '../lib/mapsLocation';
 
 export interface GtaMapViewerProps {
   locationQuery: string;
@@ -16,90 +25,48 @@ export interface GtaMapViewerProps {
   directionsUrl?: string;
   directionsButtonText?: string;
   directionsSubtext?: string;
+  googleMapsUrl?: string;
+  latitude?: number | null;
+  longitude?: number | null;
 }
 
-interface VenueCoordinates {
-  lat: number;
-  lng: number;
-  name: string;
-  fullAddress: string;
-  startLat: number;
-  startLng: number;
-  startName: string;
+interface RouteSummary {
   distance: string;
   duration: string;
-  routeCoordinates: [number, number][];
+  trafficAware: boolean;
 }
 
-// Famous French luxury wedding venues presets with real verified road coordinates
-const VENUE_PRESETS: Record<string, VenueCoordinates> = {
-  ephrussi: {
-    lat: 43.6967,
-    lng: 7.3298,
-    name: 'The Garden Terrace - Villa Ephrussi de Rothschild',
-    fullAddress: '1 Avenue Ephrussi de Rothschild, 06230 Saint-Jean-Cap-Ferrat, France',
-    startLat: 43.6950,
-    startLng: 7.2650,
-    startName: 'Nice (Promenade des Anglais)',
-    distance: '8.5 km',
-    duration: '17 min',
-    routeCoordinates: [
-      [43.6950, 7.2650], [43.6951, 7.2691], [43.6982, 7.2759], [43.7001, 7.2783],
-      [43.6986, 7.2818], [43.6981, 7.2883], [43.6966, 7.2916], [43.6975, 7.2933],
-      [43.7005, 7.2963], [43.7060, 7.3010], [43.7055, 7.3035], [43.7039, 7.3066],
-      [43.7058, 7.3089], [43.7073, 7.3093], [43.7059, 7.3109], [43.7066, 7.3118],
-      [43.7079, 7.3127], [43.7083, 7.3139], [43.7072, 7.3169], [43.7068, 7.3188],
-      [43.7051, 7.3211], [43.7040, 7.3221], [43.7029, 7.3243], [43.7016, 7.3269],
-      [43.6968, 7.3301], [43.6967, 7.3298]
-    ]
-  },
-  chantilly: {
-    lat: 49.1939,
-    lng: 2.4853,
-    name: 'The Grand Ballroom - Château de Chantilly',
-    fullAddress: 'Château de Chantilly, 60500 Chantilly, France',
-    startLat: 49.0097,
-    startLng: 2.5479,
-    startName: 'Paris (Aéroport CDG / Gare TGV)',
-    distance: '25.0 km',
-    duration: '27 min',
-    routeCoordinates: [
-      [49.0093, 2.5479], [49.0077, 2.5335], [49.0085, 2.5316], [49.0117, 2.5331],
-      [49.0123, 2.5302], [49.0621, 2.5520], [49.0866, 2.5523], [49.0854, 2.5447],
-      [49.0914, 2.5360], [49.0911, 2.5306], [49.1302, 2.5339], [49.1538, 2.5232],
-      [49.1898, 2.4846], [49.1937, 2.4853]
-    ]
-  },
-  mala: {
-    lat: 43.7214,
-    lng: 7.4042,
-    name: 'The Sunset Cafe - Plage de la Mala',
-    fullAddress: 'Plage de la Mala, 06320 Cap-d\'Ail, French Riviera',
-    startLat: 43.7384,
-    startLng: 7.4246,
-    startName: 'Monaco (Place du Casino / Gare)',
-    distance: '3.2 km',
-    duration: '8 min',
-    routeCoordinates: [
-      [43.7383, 7.4245], [43.7384, 7.4243], [43.7381, 7.4240], [43.7378, 7.4234],
-      [43.7378, 7.4220], [43.7374, 7.4227], [43.7374, 7.4241], [43.7371, 7.4229],
-      [43.7370, 7.4216], [43.7368, 7.4212], [43.7359, 7.4201], [43.7343, 7.4185],
-      [43.7332, 7.4176], [43.7320, 7.4167], [43.7311, 7.4149], [43.7303, 7.4141],
-      [43.7262, 7.4109], [43.7257, 7.4098], [43.7245, 7.4088], [43.7234, 7.4089],
-      [43.7226, 7.4083], [43.7225, 7.4062], [43.7218, 7.4046], [43.7217, 7.4043]
-    ]
-  }
-};
+function googlePinIcon(color: string, label: string) {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="44" height="56" viewBox="0 0 44 56">
+      <circle cx="22" cy="20" r="16" fill="${color}" stroke="#ffffff" stroke-width="3"/>
+      <circle cx="22" cy="20" r="5" fill="#ffffff"/>
+      <path d="M22 54 L12 32 H32 Z" fill="${color}"/>
+    </svg>
+  `;
+  return {
+    url: `data:image/svg+xml;charset=UTF-8,${encodeURIComponent(svg)}`,
+    scaledSize: new google.maps.Size(36, 46),
+    anchor: new google.maps.Point(18, 46),
+    labelOrigin: new google.maps.Point(18, -4),
+    label,
+  };
+}
 
-function resolveVenueData(query: string, name?: string, addr?: string): VenueCoordinates {
-  const combined = `${query || ''} ${name || ''} ${addr || ''}`.toLowerCase();
-  if (combined.includes('mala') || combined.includes('sunset') || combined.includes('brunch') || combined.includes('cap-d\'ail')) {
-    return VENUE_PRESETS.mala;
-  }
-  if (combined.includes('chantilly') || combined.includes('ballroom') || combined.includes('ceremony')) {
-    return VENUE_PRESETS.chantilly;
-  }
-  return VENUE_PRESETS.ephrussi;
+function leafletPinIcon(color: string) {
+  const svg = `
+    <svg xmlns="http://www.w3.org/2000/svg" width="36" height="46" viewBox="0 0 44 56">
+      <circle cx="22" cy="20" r="16" fill="${color}" stroke="#ffffff" stroke-width="3"/>
+      <circle cx="22" cy="20" r="5" fill="#ffffff"/>
+      <path d="M22 54 L12 32 H32 Z" fill="${color}"/>
+    </svg>
+  `;
+  return L.divIcon({
+    className: 'custom-leaflet-marker',
+    html: `<div style="transform: translate(-50%, -100%); filter: drop-shadow(0 4px 6px rgba(0,0,0,0.35));">${svg}</div>`,
+    iconSize: [36, 46],
+    iconAnchor: [0, 0],
+  });
 }
 
 export default function GtaMapViewer({
@@ -114,273 +81,488 @@ export default function GtaMapViewer({
   directionsUrl,
   directionsButtonText,
   directionsSubtext,
+  googleMapsUrl,
+  latitude,
+  longitude,
 }: GtaMapViewerProps) {
   const mapContainerRef = useRef<HTMLDivElement>(null);
-  const mapInstanceRef = useRef<L.Map | null>(null);
-  const routeLayerGroupRef = useRef<L.LayerGroup | null>(null);
+  const googleMapRef = useRef<google.maps.Map | null>(null);
+  const googleDestMarkerRef = useRef<google.maps.Marker | null>(null);
+  const googleOriginMarkerRef = useRef<google.maps.Marker | null>(null);
+  const googleDirectionsRef = useRef<google.maps.DirectionsRenderer | null>(null);
+  const googleTrafficRef = useRef<google.maps.TrafficLayer | null>(null);
+
+  const leafletMapRef = useRef<L.Map | null>(null);
+  const leafletDestMarkerRef = useRef<L.Marker | null>(null);
+  const leafletOriginMarkerRef = useRef<L.Marker | null>(null);
+  const leafletPolylineRef = useRef<L.Polyline | null>(null);
+
+  const lastRouteKeyRef = useRef<string>('');
 
   const [showRoute, setShowRoute] = useState(false);
   const [copiedAddress, setCopiedAddress] = useState(false);
   const [isScanning, setIsScanning] = useState(false);
+  const [isReady, setIsReady] = useState(false);
+  const [statusMessage, setStatusMessage] = useState('');
+  const [destination, setDestination] = useState<GeoCoordinates | null>(null);
+  const [origin, setOrigin] = useState<GeoCoordinates | null>(null);
+  const [routeSummary, setRouteSummary] = useState<RouteSummary | null>(null);
+  const [engine, setEngine] = useState<'google' | 'leaflet' | 'none'>('none');
 
   const isThemeAmber = theme === 'amber';
-  const accentColor = isThemeAmber ? '#D97706' : '#9E4A5A';
+  const accentColor = isThemeAmber ? '#D97706' : theme === 'rose' ? '#BE185D' : theme === 'dark' ? '#D4AF37' : '#9E4A5A';
   const accentLight = isThemeAmber ? 'rgba(217, 119, 6, 0.1)' : 'rgba(158, 74, 90, 0.1)';
   const buttonGradient = isThemeAmber
     ? 'from-amber-500 via-amber-600 to-amber-700 shadow-amber-500/25'
     : 'from-[#9E4A5A] via-[#B8576A] to-[#853648] shadow-[#9E4A5A]/25';
 
-  const venue = resolveVenueData(locationQuery, locationName || title, address);
-  const displayVenueName = locationName || title || venue.name;
-  const displayVenueAddress = address || venue.fullAddress;
+  // Sanitize venue names so raw URLs are NEVER displayed as headings or titles
+  const isUrl = (val?: string) => Boolean(val && /^https?:\/\//i.test(val.trim()));
+  const cleanTitle = isUrl(title) ? '' : title;
+  const cleanLocationName = isUrl(locationName) ? '' : locationName;
+  const cleanAddress = isUrl(address) ? '' : address;
+  const displayVenueName = cleanLocationName || cleanTitle || cleanAddress || (isRtl ? 'موقع الحفل' : 'Lieu de la cérémonie');
+  const displayVenueAddress = cleanAddress || (cleanLocationName && cleanLocationName !== displayVenueName ? cleanLocationName : '') || '';
 
-  const finalDirectionsUrl =
+  const destinationLabel = isRtl ? 'موقع الحفل' : 'Lieu de la cérémonie';
+  const currentLocationLabel = isRtl ? 'موقعك الحالي' : 'Votre position';
+
+  const fallbackDirectionsUrl =
     directionsUrl ||
-    `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(
-      displayVenueAddress || displayVenueName
-    )}`;
+    (destination
+      ? buildGoogleMapsDirectionsUrl({ origin, destination })
+      : googleMapsUrl ||
+        (displayVenueAddress || displayVenueName
+          ? `https://www.google.com/maps/dir/?api=1&destination=${encodeURIComponent(displayVenueAddress || displayVenueName)}&travelmode=driving`
+          : ''));
 
-  // Custom luxury SVG marker icon for the venue
-  const createVenueIcon = useCallback(() => {
-    const pinColor = isThemeAmber ? '#D97706' : '#9E4A5A';
-    return L.divIcon({
-      className: 'custom-venue-pin',
-      html: `
-        <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -100%);">
-          <div style="position: relative; width: 44px; height: 44px; border-radius: 50%; background: ${pinColor}; box-shadow: 0 8px 24px rgba(0,0,0,0.35); border: 3px solid #ffffff; display: flex; align-items: center; justify-content: center;">
-            <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <path d="M20 10c0 6-8 12-8 12s-8-6-8-12a8 8 0 0 1 16 0Z"/>
-              <circle cx="12" cy="10" r="3"/>
-            </svg>
-            <div style="position: absolute; inset: -5px; border-radius: 50%; border: 2px solid ${pinColor}; opacity: 0.7; animation: ping 2s cubic-bezier(0, 0, 0.2, 1) infinite;"></div>
-          </div>
-          <div style="width: 0; height: 0; border-left: 7px solid transparent; border-right: 7px solid transparent; border-top: 9px solid ${pinColor}; margin-top: -1px;"></div>
-          <div style="margin-top: 4px; white-space: nowrap; background: rgba(255,255,255,0.96); color: #1e293b; font-weight: 700; font-size: 11px; padding: 2px 8px; border-radius: 12px; box-shadow: 0 4px 12px rgba(0,0,0,0.15); border: 1px solid rgba(0,0,0,0.08);">
-            ${displayVenueName.split('-')[0].trim()}
-          </div>
-        </div>
-      `,
-      iconSize: [0, 0],
-      iconAnchor: [0, 0],
-    });
-  }, [isThemeAmber, displayVenueName]);
-
-  // Start pin for route departure
-  const createStartIcon = useCallback((startLabel: string) => {
-    return L.divIcon({
-      className: 'custom-start-pin',
-      html: `
-        <div style="position: relative; display: flex; flex-direction: column; align-items: center; transform: translate(-50%, -100%);">
-          <div style="width: 36px; height: 36px; border-radius: 50%; background: #059669; box-shadow: 0 8px 20px rgba(5,150,105,0.4); border: 3px solid #ffffff; display: flex; align-items: center; justify-content: center;">
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="#ffffff" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round">
-              <polygon points="3 11 22 2 13 21 11 13 3 11"/>
-            </svg>
-          </div>
-          <div style="width: 0; height: 0; border-left: 6px solid transparent; border-right: 6px solid transparent; border-top: 8px solid #059669; margin-top: -1px;"></div>
-          <div style="margin-top: 3px; white-space: nowrap; background: rgba(255,255,255,0.96); color: #065f46; font-weight: 700; font-size: 10px; padding: 2px 7px; border-radius: 10px; box-shadow: 0 4px 10px rgba(0,0,0,0.12);">
-            🚩 ${startLabel.split('(')[0].trim()}
-          </div>
-        </div>
-      `,
-      iconSize: [0, 0],
-      iconAnchor: [0, 0],
-    });
-  }, []);
-
-  const isInitialMountRef = useRef(true);
-  const [isReady, setIsReady] = useState(false);
-
-  // Safely observe container size so we only initialize Leaflet when visible with real dimensions
+  // Ensure map initializes only when container is visible with real dimensions
   useEffect(() => {
     const el = mapContainerRef.current;
     if (!el) return;
-
-    if (el.clientWidth > 50 && el.clientHeight > 50) {
-      setIsReady(true);
-    }
-
-    const ro = new ResizeObserver((entries) => {
+    if (el.clientWidth > 50 && el.clientHeight > 50) setIsReady(true);
+    const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         if (entry.contentRect.width > 50 && entry.contentRect.height > 50) {
           setIsReady(true);
-          if (mapInstanceRef.current) {
-            try {
-              mapInstanceRef.current.invalidateSize();
-            } catch {
-              // ignore
-            }
+          if (googleMapRef.current && window.google?.maps) {
+            google.maps.event.trigger(googleMapRef.current, 'resize');
+          }
+          if (leafletMapRef.current) {
+            leafletMapRef.current.invalidateSize();
           }
         }
       }
     });
-
-    ro.observe(el);
-    return () => ro.disconnect();
+    observer.observe(el);
+    return () => observer.disconnect();
   }, []);
 
-  // Initialize and update the Leaflet map only when container has valid dimensions
+  // Resolve destination coordinates from props, URL, or backend lookup
   useEffect(() => {
-    if (!isReady || !mapContainerRef.current) return;
-    const el = mapContainerRef.current;
-    if (el.clientWidth < 50 || el.clientHeight < 50) return;
+    const providedLat = parseCoordinate(latitude);
+    const providedLng = parseCoordinate(longitude);
+    if (providedLat !== null && providedLng !== null && isValidCoordinates(providedLat, providedLng)) {
+      setDestination({ latitude: providedLat, longitude: providedLng });
+      return;
+    }
 
-    try {
-      if (!mapInstanceRef.current) {
-        const map = L.map(el, {
-          center: [venue.lat, venue.lng],
-          zoom: 15,
-          zoomControl: false,
-          attributionControl: false,
-        });
-
-        L.tileLayer('https://{s}.basemaps.cartocdn.com/rastertiles/voyager/{z}/{x}/{y}{r}.png', {
-          maxZoom: 19,
-          subdomains: 'abcd',
-        }).addTo(map);
-
-        L.control.zoom({ position: 'bottomright' }).addTo(map);
-
-        const routeGroup = L.layerGroup().addTo(map);
-        routeLayerGroupRef.current = routeGroup;
-        mapInstanceRef.current = map;
+    const urlCandidate =
+      (isUrl(googleMapsUrl) ? googleMapsUrl : '') ||
+      (isUrl(locationQuery) ? locationQuery : '') ||
+      (isUrl(address) ? address : '') ||
+      (isUrl(locationName) ? locationName : '');
+    if (urlCandidate) {
+      const extracted = extractCoordinatesFromMapsUrl(urlCandidate);
+      if (extracted) {
+        setDestination(extracted);
+        return;
       }
+    }
 
-      const map = mapInstanceRef.current;
-      const routeGroup = routeLayerGroupRef.current;
+    let cancelled = false;
+    const lookup = async () => {
+      try {
+        const resolved = await resolveMapsLocationRequest({
+          url: urlCandidate || undefined,
+          query: !isUrl(locationQuery) ? [locationName, address, locationQuery].filter(Boolean).join(', ') : undefined,
+        });
+        if (cancelled) return;
+        if (resolved && isValidCoordinates(resolved.latitude, resolved.longitude)) {
+          setDestination({ latitude: resolved.latitude, longitude: resolved.longitude });
+        }
+      } catch {
+        // Fallback default coordinates if offline
+        if (!cancelled && !destination) {
+          setDestination({ latitude: 36.8065, longitude: 10.1815 });
+        }
+      }
+    };
+    void lookup();
+    return () => {
+      cancelled = true;
+    };
+  }, [googleMapsUrl, latitude, longitude, locationQuery, locationName, address]);
 
-      if (!map || !routeGroup) return;
+  // Initialize Map Engine (Google Maps if available, otherwise Leaflet)
+  useEffect(() => {
+    if (!isReady || !mapContainerRef.current || !destination) return;
 
-      routeGroup.clearLayers();
+    let cancelled = false;
 
-      const venueMarker = L.marker([venue.lat, venue.lng], {
-        icon: createVenueIcon(),
-      }).addTo(routeGroup);
+    // Try Google Maps first
+    loadGoogleMapsApi(isRtl ? 'ar' : 'fr')
+      .then(() => {
+        if (cancelled || !mapContainerRef.current) return;
+        setEngine('google');
 
-      venueMarker.bindPopup(`
-        <div style="font-family: inherit; padding: 4px;">
-          <p style="margin: 0; font-size: 11px; font-weight: 700; color: ${accentColor}; text-transform: uppercase;">Destination</p>
-          <h4 style="margin: 4px 0; font-size: 14px; font-weight: 700; color: #0f172a;">${displayVenueName}</h4>
-          <p style="margin: 0; font-size: 11px; color: #475569;">${displayVenueAddress}</p>
-        </div>
-      `);
+        if (!googleMapRef.current) {
+          const map = new google.maps.Map(mapContainerRef.current, {
+            center: { lat: destination.latitude, lng: destination.longitude },
+            zoom: 15,
+            mapTypeControl: false,
+            streetViewControl: false,
+            fullscreenControl: true,
+            zoomControl: true,
+            gestureHandling: 'greedy',
+            clickableIcons: false,
+          });
+          googleMapRef.current = map;
+          googleDirectionsRef.current = new google.maps.DirectionsRenderer({
+            map,
+            suppressMarkers: true,
+            preserveViewport: false,
+            polylineOptions: {
+              strokeColor: accentColor,
+              strokeOpacity: 0.95,
+              strokeWeight: 5,
+            },
+          });
+          googleTrafficRef.current = new google.maps.TrafficLayer();
+        } else {
+          googleMapRef.current.panTo({ lat: destination.latitude, lng: destination.longitude });
+          googleMapRef.current.setZoom(15);
+        }
 
-      if (showRoute) {
-        const startMarker = L.marker([venue.startLat, venue.startLng], {
-          icon: createStartIcon(venue.startName),
-        }).addTo(routeGroup);
+        // Place or update Google Maps destination pin
+        googleDestMarkerRef.current?.setMap(null);
+        googleDestMarkerRef.current = new google.maps.Marker({
+          map: googleMapRef.current,
+          position: { lat: destination.latitude, lng: destination.longitude },
+          title: destinationLabel,
+          icon: googlePinIcon(accentColor, ''),
+          zIndex: 2,
+        });
+        const info = new google.maps.InfoWindow({
+          content: `<div style="font-family:inherit;padding:4px;max-width:220px">
+            <p style="margin:0;font-size:11px;font-weight:700;color:${accentColor}">${destinationLabel}</p>
+            <h4 style="margin:4px 0;font-size:14px;font-weight:700;color:#0f172a">${displayVenueName}</h4>
+            ${displayVenueAddress ? `<p style="margin:0;font-size:11px;color:#475569">${displayVenueAddress}</p>` : ''}
+          </div>`,
+        });
+        googleDestMarkerRef.current.addListener('click', () => info.open({ map: googleMapRef.current, anchor: googleDestMarkerRef.current }));
+      })
+      .catch(() => {
+        if (cancelled || !mapContainerRef.current) return;
+        // Fallback cleanly to Leaflet
+        setEngine('leaflet');
 
-        startMarker.bindPopup(`
-          <div style="font-family: inherit; padding: 4px;">
-            <p style="margin: 0; font-size: 11px; font-weight: 700; color: #059669; text-transform: uppercase;">Point de départ</p>
-            <h4 style="margin: 4px 0; font-size: 13px; font-weight: 700; color: #0f172a;">${venue.startName}</h4>
-            <p style="margin: 0; font-size: 11px; color: #475569;">Trajet recommandé vers le lieu du mariage</p>
+        if (!leafletMapRef.current) {
+          const lMap = L.map(mapContainerRef.current, {
+            center: [destination.latitude, destination.longitude],
+            zoom: 15,
+            zoomControl: true,
+            attributionControl: false,
+          });
+          leafletMapRef.current = lMap;
+
+          // Clean openstreetmap tiles with zero watermark and no API key needed
+          L.tileLayer('https://tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+          }).addTo(lMap);
+        } else {
+          leafletMapRef.current.closePopup();
+          leafletMapRef.current.flyTo([destination.latitude, destination.longitude], 15, {
+            duration: 1.0,
+          });
+        }
+
+        // Place or update Leaflet destination pin
+        leafletDestMarkerRef.current?.remove();
+        const marker = L.marker([destination.latitude, destination.longitude], {
+          icon: leafletPinIcon(accentColor),
+        }).addTo(leafletMapRef.current);
+        marker.bindPopup(`
+          <div style="font-family:inherit;padding:4px;min-width:160px;">
+            <p style="margin:0;font-size:11px;font-weight:700;color:${accentColor}">${destinationLabel}</p>
+            <h4 style="margin:4px 0;font-size:14px;font-weight:700;color:#0f172a">${displayVenueName}</h4>
+            ${displayVenueAddress ? `<p style="margin:0;font-size:11px;color:#475569">${displayVenueAddress}</p>` : ''}
           </div>
         `);
+        leafletDestMarkerRef.current = marker;
+      });
 
-        L.polyline(venue.routeCoordinates, {
-          color: isThemeAmber ? '#F59E0B' : '#C5924E',
-          weight: 8,
-          opacity: 0.45,
-          lineCap: 'round',
-          lineJoin: 'round',
-        }).addTo(routeGroup);
+    return () => {
+      cancelled = true;
+    };
+  }, [accentColor, destination, destinationLabel, displayVenueAddress, displayVenueName, isReady, isRtl]);
 
-        L.polyline(venue.routeCoordinates, {
-          color: accentColor,
-          weight: 4,
-          opacity: 0.95,
-          dashArray: '8, 8',
-          lineCap: 'round',
-          lineJoin: 'round',
-        }).addTo(routeGroup);
-
-        const bounds = L.latLngBounds(venue.routeCoordinates);
-        const mapSize = map.getSize();
-        if (mapSize && mapSize.x > 50 && mapSize.y > 50) {
-          try {
-            map.flyToBounds(bounds, {
-              padding: [45, 45],
-              duration: 1.2,
-            });
-          } catch {
-            map.fitBounds(bounds, { padding: [20, 20] });
-          }
-        } else {
-          map.fitBounds(bounds, { padding: [20, 20] });
-        }
-      } else {
-        const mapSize = map.getSize();
-        if (!isInitialMountRef.current && mapSize && mapSize.x > 50 && mapSize.y > 50) {
-          try {
-            map.flyTo([venue.lat, venue.lng], 15, {
-              duration: 1.0,
-            });
-          } catch {
-            map.setView([venue.lat, venue.lng], 15);
-          }
-        } else {
-          map.setView([venue.lat, venue.lng], 15);
-        }
-      }
-
-      isInitialMountRef.current = false;
-    } catch (err) {
-      console.warn('Leaflet map update caught error:', err);
-    }
-  }, [
-    isReady,
-    venue,
-    showRoute,
-    accentColor,
-    isThemeAmber,
-    createVenueIcon,
-    createStartIcon,
-    displayVenueName,
-    displayVenueAddress,
-  ]);
-
+  // Clean up Leaflet on unmount
   useEffect(() => {
     return () => {
-      if (mapInstanceRef.current) {
-        try {
-          mapInstanceRef.current.remove();
-        } catch {
-          // ignore
-        }
-        mapInstanceRef.current = null;
-      }
+      leafletMapRef.current?.remove();
+      leafletMapRef.current = null;
     };
   }, []);
 
-  const handleCopyAddress = () => {
-    if (navigator.clipboard) {
-      navigator.clipboard.writeText(displayVenueAddress);
-      setCopiedAddress(true);
-      setTimeout(() => setCopiedAddress(false), 2000);
+  const clearRouteOverlay = useCallback(() => {
+    // Clear Google Maps overlay
+    googleDirectionsRef.current?.set('directions', null);
+    googleOriginMarkerRef.current?.setMap(null);
+    googleOriginMarkerRef.current = null;
+    googleTrafficRef.current?.setMap(null);
+
+    // Clear Leaflet overlay
+    leafletPolylineRef.current?.remove();
+    leafletPolylineRef.current = null;
+    leafletOriginMarkerRef.current?.remove();
+    leafletOriginMarkerRef.current = null;
+
+    lastRouteKeyRef.current = '';
+    setRouteSummary(null);
+    setOrigin(null);
+  }, []);
+
+  // Reset route whenever destination or location props change
+  useEffect(() => {
+    setShowRoute(false);
+    clearRouteOverlay();
+  }, [googleMapsUrl, locationQuery, latitude, longitude, clearRouteOverlay]);
+
+  const drawRoute = useCallback(
+    async (from: GeoCoordinates, to: GeoCoordinates) => {
+      const routeKey = `${from.latitude},${from.longitude}|${to.latitude},${to.longitude}`;
+      if (lastRouteKeyRef.current === routeKey && routeSummary) return;
+
+      // Google Maps routing engine
+      if (engine === 'google' && googleMapRef.current && window.google?.maps) {
+        const map = googleMapRef.current;
+        googleOriginMarkerRef.current?.setMap(null);
+        googleOriginMarkerRef.current = new google.maps.Marker({
+          map,
+          position: { lat: from.latitude, lng: from.longitude },
+          title: currentLocationLabel,
+          icon: googlePinIcon('#059669', ''),
+          zIndex: 3,
+        });
+
+        const service = new google.maps.DirectionsService();
+        const request = (traffic: boolean): google.maps.DirectionsRequest => ({
+          origin: { lat: from.latitude, lng: from.longitude },
+          destination: { lat: to.latitude, lng: to.longitude },
+          travelMode: google.maps.TravelMode.DRIVING,
+          provideRouteAlternatives: false,
+          ...(traffic ? { drivingOptions: { departureTime: new Date(), trafficModel: google.maps.TrafficModel.BEST_GUESS } } : {}),
+        });
+
+        try {
+          let trafficAware = true;
+          let result: google.maps.DirectionsResult;
+          try {
+            result = await new Promise((res, rej) =>
+              service.route(request(true), (r, s) => (s === 'OK' && r ? res(r) : rej(s)))
+            );
+          } catch {
+            trafficAware = false;
+            result = await new Promise((res, rej) =>
+              service.route(request(false), (r, s) => (s === 'OK' && r ? res(r) : rej(s)))
+            );
+          }
+
+          googleDirectionsRef.current?.setDirections(result);
+          googleTrafficRef.current?.setMap(map);
+          const leg = result.routes[0]?.legs[0];
+          const durationText = leg?.duration_in_traffic?.text || leg?.duration?.text || '';
+          const distance = leg?.distance?.text || '';
+          setRouteSummary({ distance, duration: durationText, trafficAware: Boolean(trafficAware && leg?.duration_in_traffic) });
+          lastRouteKeyRef.current = routeKey;
+          const bounds = result.routes[0]?.bounds;
+          if (bounds) map.fitBounds(bounds, 48);
+          return;
+        } catch {
+          // Fallback bounds
+          map.fitBounds(
+            new google.maps.LatLngBounds(
+              { lat: Math.min(from.latitude, to.latitude), lng: Math.min(from.longitude, to.longitude) },
+              { lat: Math.max(from.latitude, to.latitude), lng: Math.max(from.longitude, to.longitude) }
+            ),
+            48
+          );
+        }
+      }
+
+      // Leaflet routing engine
+      if (leafletMapRef.current) {
+        const lMap = leafletMapRef.current;
+        leafletOriginMarkerRef.current?.remove();
+        leafletOriginMarkerRef.current = L.marker([from.latitude, from.longitude], {
+          icon: leafletPinIcon('#059669'),
+        }).addTo(lMap);
+
+        // Fetch driving road route from free OSRM service
+        try {
+          const osrmUrl = `https://router.project-osrm.org/route/v1/driving/${from.longitude},${from.latitude};${to.longitude},${to.latitude}?overview=full&geometries=geojson`;
+          const res = await fetch(osrmUrl);
+          const data = (await res.json()) as {
+            routes?: Array<{
+              distance: number;
+              duration: number;
+              geometry: { coordinates: Array<[number, number]> };
+            }>;
+          };
+
+          if (data.routes && data.routes.length > 0) {
+            const road = data.routes[0];
+            const latLngs = road.geometry.coordinates.map(([lng, lat]) => [lat, lng] as [number, number]);
+            leafletPolylineRef.current?.remove();
+            leafletPolylineRef.current = L.polyline(latLngs, {
+              color: accentColor,
+              weight: 5,
+              opacity: 0.9,
+            }).addTo(lMap);
+
+            const km = (road.distance / 1000).toFixed(1);
+            const mins = Math.max(1, Math.round(road.duration / 60));
+            const durationStr = mins > 60 ? `${Math.floor(mins / 60)} h ${mins % 60} min` : `${mins} min`;
+
+            setRouteSummary({ distance: `${km} km`, duration: durationStr, trafficAware: true });
+            lastRouteKeyRef.current = routeKey;
+            lMap.fitBounds(leafletPolylineRef.current.getBounds(), { padding: [40, 40] });
+            return;
+          }
+        } catch {
+          // OSRM failed, draw direct road polyline
+        }
+
+        // Direct straight line fallback if routing server unreachable
+        const directCoords: Array<[number, number]> = [
+          [from.latitude, from.longitude],
+          [to.latitude, to.longitude],
+        ];
+        leafletPolylineRef.current?.remove();
+        leafletPolylineRef.current = L.polyline(directCoords, {
+          color: accentColor,
+          weight: 4,
+          dashArray: '8, 8',
+          opacity: 0.85,
+        }).addTo(lMap);
+
+        const dLat = (to.latitude - from.latitude) * 111;
+        const dLng = (to.longitude - from.longitude) * 111 * Math.cos((from.latitude * Math.PI) / 180);
+        const approxKm = Math.sqrt(dLat * dLat + dLng * dLng).toFixed(1);
+        const approxMins = Math.max(2, Math.round((Number(approxKm) / 45) * 60));
+
+        setRouteSummary({ distance: `~${approxKm} km`, duration: `~${approxMins} min`, trafficAware: false });
+        lastRouteKeyRef.current = routeKey;
+        lMap.fitBounds(leafletPolylineRef.current.getBounds(), { padding: [40, 40] });
+      }
+    },
+    [accentColor, currentLocationLabel, engine, routeSummary]
+  );
+
+  const requestVisitorRoute = useCallback(() => {
+    if (!destination) {
+      setStatusMessage(isRtl ? 'تعذر تحديد موقع الحفل على الخريطة.' : 'Le lieu de la cérémonie est introuvable.');
+      setShowRoute(true);
+      return;
     }
-  };
+
+    if (!navigator.geolocation) {
+      setStatusMessage(
+        isRtl
+          ? 'المتصفح لا يدعم تحديد الموقع. يمكنك فتح المسار مباشرة في تطبيق Google Maps.'
+          : 'La géolocalisation n’est pas prise en charge. Ouvrez l’itinéraire dans Google Maps.'
+      );
+      setShowRoute(true);
+      return;
+    }
+
+    setShowRoute(true);
+    setIsScanning(true);
+    setStatusMessage(
+      isRtl
+        ? 'نحتاج إلى إذن تحديد موقعك لحساب مسار الوصول إلى الحفل.'
+        : 'Nous avons besoin de votre position pour calculer l’itinéraire vers le lieu.'
+    );
+
+    navigator.geolocation.getCurrentPosition(
+      (position) => {
+        const nextOrigin = {
+          latitude: position.coords.latitude,
+          longitude: position.coords.longitude,
+        };
+        if (!isValidCoordinates(nextOrigin.latitude, nextOrigin.longitude)) {
+          setStatusMessage(
+            isRtl
+              ? 'لم نتمكن من قراءة إحداثيات موقعك بدقة. يمكنك فتح المسار في Google Maps.'
+              : 'Impossible de lire votre position exacte. Ouvrez l’itinéraire dans Google Maps.'
+          );
+          setIsScanning(false);
+          return;
+        }
+        setOrigin(nextOrigin);
+        setStatusMessage('');
+        void drawRoute(nextOrigin, destination);
+        setIsScanning(false);
+      },
+      () => {
+        setStatusMessage(
+          isRtl
+            ? 'لم نتمكن من الوصول إلى موقعك الحالي. اضغط على الزر بالأسفل لفتح المسار في تطبيق Google Maps.'
+            : 'Impossible d’accéder à votre position. Cliquez ci-dessous pour ouvrir le guidage dans Google Maps.'
+        );
+        setIsScanning(false);
+      },
+      { enableHighAccuracy: true, timeout: 12000, maximumAge: 60_000 }
+    );
+  }, [destination, drawRoute, isRtl]);
 
   const handleToggleRoute = () => {
-    setIsScanning(true);
-    setShowRoute((prev) => !prev);
-    setTimeout(() => setIsScanning(false), 1200);
+    if (showRoute) {
+      setShowRoute(false);
+      clearRouteOverlay();
+      if (googleMapRef.current && destination) {
+        googleMapRef.current.panTo({ lat: destination.latitude, lng: destination.longitude });
+        googleMapRef.current.setZoom(15);
+      }
+      if (leafletMapRef.current && destination) {
+        leafletMapRef.current.setView([destination.latitude, destination.longitude], 15);
+      }
+      setStatusMessage('');
+      return;
+    }
+    requestVisitorRoute();
   };
 
   const handleRecenter = () => {
-    if (mapInstanceRef.current) {
-      setIsScanning(true);
-      try {
-        const mapSize = mapInstanceRef.current.getSize();
-        if (mapSize && mapSize.x > 50 && mapSize.y > 50) {
-          mapInstanceRef.current.flyTo([venue.lat, venue.lng], 16, { duration: 1.1 });
-        } else {
-          mapInstanceRef.current.setView([venue.lat, venue.lng], 16);
-        }
-      } catch {
-        mapInstanceRef.current.setView([venue.lat, venue.lng], 16);
-      }
-      setTimeout(() => setIsScanning(false), 1200);
+    if (!destination) return;
+    setIsScanning(true);
+    if (googleMapRef.current) {
+      googleMapRef.current.panTo({ lat: destination.latitude, lng: destination.longitude });
+      googleMapRef.current.setZoom(16);
     }
+    if (leafletMapRef.current) {
+      leafletMapRef.current.setView([destination.latitude, destination.longitude], 16);
+    }
+    window.setTimeout(() => setIsScanning(false), 1200);
+  };
+
+  const handleCopyAddress = () => {
+    const text = displayVenueAddress || displayVenueName;
+    if (!text || !navigator.clipboard) return;
+    navigator.clipboard.writeText(text);
+    setCopiedAddress(true);
+    setTimeout(() => setCopiedAddress(false), 2000);
   };
 
   return (
@@ -390,7 +572,6 @@ export default function GtaMapViewer({
       } p-4 sm:p-5 shadow-xl transition-all ${className}`}
       dir={isRtl ? 'rtl' : 'ltr'}
     >
-      {/* ─── CARD HEADER ─── */}
       <div className="flex items-center justify-between border-b pb-3 gap-2 border-slate-100">
         <div className="min-w-0 flex-1">
           <div className="flex items-center gap-1.5">
@@ -404,7 +585,6 @@ export default function GtaMapViewer({
           </h3>
         </div>
 
-        {/* Recenter / Scan Trigger Button */}
         <button
           type="button"
           onClick={handleRecenter}
@@ -421,15 +601,13 @@ export default function GtaMapViewer({
         </button>
       </div>
 
-      {/* ─── VENUE ADDRESS BADGE ─── */}
       <div className="mt-2.5 flex items-start gap-2 text-xs text-slate-600">
         <MapPin className="h-3.5 w-3.5 shrink-0 mt-0.5" style={{ color: accentColor }} />
         <p className="line-clamp-2 leading-relaxed text-[11px] sm:text-xs font-medium">
-          {displayVenueAddress}
+          {displayVenueAddress || (isRtl ? 'موقع الحفل' : 'Lieu de la cérémonie')}
         </p>
       </div>
 
-      {/* ─── LEAFLET INTERACTIVE MAP STAGE (NO BLACK BACKGROUNDS) ─── */}
       <div
         className={`relative mt-3 overflow-hidden rounded-2xl border ${
           isThemeAmber ? 'border-amber-200/70' : 'border-[#F2D6DC]'
@@ -437,26 +615,31 @@ export default function GtaMapViewer({
       >
         <div ref={mapContainerRef} className={`w-full ${heightClass} relative z-0`} />
 
-        {/* Floating Quick Toggle on Map (Venue vs Route) */}
         <div className="absolute top-2.5 right-2.5 z-10 flex items-center gap-1.5 rounded-full bg-white/95 backdrop-blur-md p-1 shadow-md border border-slate-200/80">
           <button
             type="button"
-            onClick={() => setShowRoute(false)}
+            onClick={() => {
+              setShowRoute(false);
+              clearRouteOverlay();
+              if (googleMapRef.current && destination) {
+                googleMapRef.current.panTo({ lat: destination.latitude, lng: destination.longitude });
+                googleMapRef.current.setZoom(15);
+              }
+              if (leafletMapRef.current && destination) {
+                leafletMapRef.current.setView([destination.latitude, destination.longitude], 15);
+              }
+            }}
             className={`rounded-full px-2.5 py-1 text-[10px] font-bold transition-all cursor-pointer ${
-              !showRoute
-                ? 'bg-slate-900 text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+              !showRoute ? 'bg-slate-900 text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
           >
             {isRtl ? 'المكان' : 'Lieu'}
           </button>
           <button
             type="button"
-            onClick={() => setShowRoute(true)}
+            onClick={requestVisitorRoute}
             className={`flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold transition-all cursor-pointer ${
-              showRoute
-                ? 'text-white shadow-xs'
-                : 'text-slate-600 hover:text-slate-900'
+              showRoute ? 'text-white shadow-xs' : 'text-slate-600 hover:text-slate-900'
             }`}
             style={{ backgroundColor: showRoute ? accentColor : 'transparent' }}
           >
@@ -465,14 +648,17 @@ export default function GtaMapViewer({
           </button>
         </div>
 
-        {/* Floating Mode Indicator */}
         <div className="pointer-events-none absolute bottom-2.5 left-2.5 z-10 flex items-center gap-1.5 rounded-full bg-white/90 backdrop-blur-md px-2.5 py-1 text-[10px] font-semibold text-slate-800 shadow-sm border border-slate-200">
           <Navigation className="h-3 w-3" style={{ color: accentColor }} />
           <span>
             {showRoute
-              ? isRtl
-                ? `المسار من ${venue.startName} (${venue.distance})`
-                : `Itinéraire depuis ${venue.startName} (${venue.distance})`
+              ? routeSummary
+                ? isRtl
+                  ? `المسار (${routeSummary.distance})`
+                  : `Itinéraire (${routeSummary.distance})`
+                : isRtl
+                ? 'مسار الوصول المباشر'
+                : 'Guidage GPS vers le lieu'
               : isRtl
               ? 'موقع الحفل الرسمي'
               : 'Emplacement officiel'}
@@ -480,7 +666,6 @@ export default function GtaMapViewer({
         </div>
       </div>
 
-      {/* ─── MAIN BUTTON: SHOW THE WAY IN THE SAME MAP ─── */}
       <div className="mt-3.5 sm:mt-4 space-y-2">
         <button
           type="button"
@@ -509,7 +694,6 @@ export default function GtaMapViewer({
           </span>
         </button>
 
-        {/* ─── LIVE ROUTE & DESTINATION INFO CARD (DIRECTLY BELOW MAP) ─── */}
         <AnimatePresence>
           {showRoute && (
             <motion.div
@@ -523,7 +707,6 @@ export default function GtaMapViewer({
                   : 'border-[#F2D6DC] bg-gradient-to-br from-[#FFFDFD] to-[#FAF1F3]'
               }`}
             >
-              {/* Route Telemetry Bar */}
               <div className="flex items-center justify-between gap-2 border-b pb-2.5 border-slate-200/60">
                 <div className="flex items-center gap-2">
                   <span
@@ -537,23 +720,50 @@ export default function GtaMapViewer({
                       {isRtl ? 'تفاصيل المسار المباشر' : 'GUIDAGE ROUTIER EN DIRECT'}
                     </p>
                     <h4 className="font-bold text-xs sm:text-sm text-slate-900 leading-tight">
-                      {venue.distance} · {venue.duration} {isRtl ? 'بالسيارة' : 'en voiture'}
+                      {routeSummary
+                        ? `🚗 ${isRtl ? 'مدة الوصول' : 'Durée'} : ${routeSummary.duration} · 📍 ${isRtl ? 'المسافة' : 'Distance'} : ${routeSummary.distance}`
+                        : isRtl
+                        ? `مسار الوصول إلى ${displayVenueName}`
+                        : `Itinéraire vers ${displayVenueName}`}
                     </h4>
                   </div>
                 </div>
 
-                <span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2.5 py-1 text-[10px] font-bold text-emerald-800 border border-emerald-200">
-                  <span className="h-1.5 w-1.5 rounded-full bg-emerald-600 animate-pulse" />
-                  {isRtl ? 'المسار مفعّل' : 'Tracé actif'}
+                <span
+                  className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold border ${
+                    routeSummary
+                      ? 'bg-emerald-100 text-emerald-800 border-emerald-200'
+                      : 'bg-amber-50 text-amber-800 border-amber-200'
+                  }`}
+                >
+                  <span className={`h-1.5 w-1.5 rounded-full ${routeSummary ? 'bg-emerald-600' : 'bg-amber-500'}`} />
+                  {routeSummary
+                    ? routeSummary.trafficAware
+                      ? isRtl
+                        ? 'مرور محدّث'
+                        : 'Trafic à jour'
+                      : isRtl
+                      ? 'المسار مفعّل'
+                      : 'Tracé actif'
+                    : isRtl
+                    ? 'الملاحة جاهزة'
+                    : 'Prêt pour navigation'}
                 </span>
               </div>
 
-              {/* Waypoints */}
+              {statusMessage && (
+                <p className="mt-3 rounded-xl bg-white/80 px-3 py-2 text-xs font-medium text-slate-700 border border-slate-200">
+                  {statusMessage}
+                </p>
+              )}
+
               <div className="mt-3 space-y-2 text-xs text-slate-700 font-medium">
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full bg-emerald-500 shrink-0" />
                   <span className="text-slate-500">{isRtl ? 'من:' : 'Départ :'}</span>
-                  <span className="font-semibold text-slate-900">{venue.startName}</span>
+                  <span className="font-semibold text-slate-900 truncate">
+                    {origin ? currentLocationLabel : (isRtl ? 'موقعك الحالي (عبر Google Maps)' : 'Votre position')}
+                  </span>
                 </div>
                 <div className="flex items-center gap-2">
                   <span className="h-2 w-2 rounded-full shrink-0" style={{ backgroundColor: accentColor }} />
@@ -562,17 +772,16 @@ export default function GtaMapViewer({
                 </div>
               </div>
 
-              {/* Action Buttons: Google Maps External & Copy */}
               <div className="mt-3.5 flex flex-wrap items-center gap-2">
                 <a
-                  href={finalDirectionsUrl}
+                  href={fallbackDirectionsUrl}
                   target="_blank"
                   rel="noreferrer"
                   className="flex-1 inline-flex items-center justify-center gap-1.5 rounded-xl px-4 py-2.5 text-xs font-bold text-white shadow-sm transition hover:opacity-95 active:scale-95"
                   style={{ backgroundColor: accentColor }}
                 >
                   <Compass className="h-3.5 w-3.5 text-white/90" />
-                  <span>{isRtl ? 'فتح في خرائط Google' : 'Ouvrir dans Google Maps'}</span>
+                  <span>{isRtl ? 'فتح المسار في Google Maps' : 'Ouvrir dans Google Maps'}</span>
                   <ExternalLink className="h-3 w-3 text-white/80" />
                 </a>
 

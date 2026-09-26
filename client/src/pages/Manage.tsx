@@ -12,6 +12,8 @@ import {
   normalizeEventType,
   type EventType,
 } from '../lib/invitationFieldSchemas';
+import { MapsLocationField } from '../components/manage/MapsLocationField';
+import { isValidCoordinates, parseCoordinate } from '../lib/mapsLocation';
 
 const statuses = ['DRAFT', 'PREVIEW', 'CHANGES_REQUESTED', 'APPROVED', 'PUBLISHED'] as const;
 
@@ -278,6 +280,12 @@ export function ManageInvitationForm() {
       return;
     }
 
+    const mapsUrl = String(data.mapsUrl ?? '').trim();
+    if (mapsUrl && !isValidCoordinates(parseCoordinate(data.mapsLatitude), parseCoordinate(data.mapsLongitude))) {
+      setError('تعذر تحديد الموقع تلقائياً. يرجى اختيار موقع الحفل على الخريطة.');
+      return;
+    }
+
     try {
       const payload = {
         slug: slug || undefined,
@@ -415,6 +423,20 @@ export function ManageInvitationForm() {
               <div className="mt-5 grid gap-4 sm:grid-cols-2">
                 {sectionFields.map((field) => {
                   const value = data[field.key] ?? '';
+
+                  if (field.key === 'mapsUrl') {
+                    return (
+                      <MapsLocationField
+                        key={field.key}
+                        mapsUrl={String(data.mapsUrl ?? '')}
+                        latitude={data.mapsLatitude}
+                        longitude={data.mapsLongitude}
+                        address={String(data.address ?? '')}
+                        venue={String(data.venue ?? '')}
+                        onChange={(next) => setData((current) => ({ ...current, ...next }))}
+                      />
+                    );
+                  }
 
                   if (field.type === 'repeatable-list') {
                     const repeatableField = field as Extract<typeof field, { type: 'repeatable-list' }>;
@@ -676,7 +698,7 @@ export function ManageInvitationPreview() {
         {/* Responsive Frame Container */}
         <div className="mx-auto flex justify-center transition-all duration-300">
           <div
-            className={`w-full overflow-hidden rounded-[2rem] border-[8px] border-[#2c2420] bg-white shadow-[0_35px_90px_rgba(44,36,32,0.25)] transition-all duration-300 ${
+            className={`relative w-full overflow-hidden rounded-[2rem] border-[8px] border-[#2c2420] bg-white shadow-[0_35px_90px_rgba(44,36,32,0.25)] transition-all duration-300 ${
               deviceView === 'phone'
                 ? 'max-w-[420px]'
                 : deviceView === 'tablet'

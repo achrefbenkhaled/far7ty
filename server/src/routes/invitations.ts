@@ -30,7 +30,7 @@ router.get('/:slug', async (req, res) => {
     },
   });
   if (!invitation) return res.status(404).json({ message: 'Invitation not found' });
-  return res.json({ invitation: { id: invitation.id, slug: invitation.slug, templateId: invitation.templateId, eventType: invitation.eventType, data: invitation.data, publishedAt: invitation.publishedAt } });
+  return res.json({ invitation: { id: invitation.id, slug: invitation.slug, templateId: invitation.templateId, eventType: invitation.eventType, data: invitation.data, publishedAt: invitation.publishedAt, memoriesEnabled: invitation.memoriesEnabled, guestUploadsEnabled: invitation.guestUploadsEnabled, memoriesToken: invitation.memoriesToken, storageQuotaBytes: Number(invitation.storageQuotaBytes) } });
 });
 
 router.post('/', (req, res) => {

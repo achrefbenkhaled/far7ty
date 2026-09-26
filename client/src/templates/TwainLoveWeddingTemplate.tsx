@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Sparkles, MapPin, Clock, Calendar, Play, Pause, ChevronLeft, ChevronRight, Lock } from 'lucide-react';
 import GtaMapViewer from '../components/GtaMapViewer';
+import { invitationCoordinates, extractMapsUrlFromItem, cleanDisplayLocation } from '../lib/mapsLocation';
 import { useLanguageTheme } from '../context/LanguageThemeContext';
 import { Header } from '../components/Header';
 import { ShareModal } from '../components/ShareModal';
@@ -32,6 +33,22 @@ export default function TwainLoveWeddingTemplate({ preview = false, invitationDa
       ...fallback,
       ...(custom && typeof custom === 'object' ? custom as Partial<InvitationContent> : {}),
     };
+    const programCards = Array.isArray(invitationData?.program) && invitationData.program.length > 0
+      ? (invitationData.program as Array<Record<string, string>>).map((item) => {
+          const itemUrl = extractMapsUrlFromItem(item, '');
+          const cleanLoc = cleanDisplayLocation(item.location, '');
+          return {
+            date: item.date || getText('date', ''),
+            time: item.time || '',
+            title: item.title || '',
+            location: cleanLoc,
+            address: item.address || getText('address', ''),
+            description: item.desc || item.description || '',
+            mapQuery: itemUrl || item.mapQuery || item.address || cleanLoc || '',
+          };
+        })
+      : null;
+
     const cleanedCards = (baseContent.eventCards || defaultInvitationContent.eventCards).map((card, idx) => {
       if (!card.address || card.address.includes('Romance City') || card.mapQuery?.includes('Romance City') || card.location?.includes('Romance City')) {
         return defaultInvitationContent.eventCards[idx] || defaultInvitationContent.eventCards[0];
@@ -43,10 +60,12 @@ export default function TwainLoveWeddingTemplate({ preview = false, invitationDa
       coupleNames: [getText('brideName', fallback.coupleNames[0]), getText('groomName', fallback.coupleNames[1])],
       dateLabel: `${getText('date', fallback.dateLabel)}${invitationData?.time ? ` · ${getText('time', '')}` : ''}`,
       description: getText('description', fallback.description),
-      eventCards: cleanedCards.map((event, index) => index === 0 ? { ...event, date: getText('date', event.date), time: getText('time', event.time), location: getText('venue', event.location), address: getText('address', event.address), mapQuery: getText('mapsUrl', event.mapQuery ?? '') } : event),
+      eventCards: programCards || cleanedCards.map((event, index) => index === 0 ? { ...event, date: getText('date', event.date), time: getText('time', event.time), location: getText('venue', event.location), address: getText('address', event.address), mapQuery: getText('mapsUrl', event.mapQuery ?? '') } : event),
     };
   });
 
+  const destination = invitationCoordinates(invitationData);
+  const mapsUrl = getText('mapsUrl', '');
   const canEditTemplate = false;
 
   useEffect(() => {
@@ -145,6 +164,7 @@ export default function TwainLoveWeddingTemplate({ preview = false, invitationDa
   });
 
   const selectedMapEvent = sortedEventCards[selectedMapIndex] ?? sortedEventCards[0] ?? null;
+  const eventMapsUrl = extractMapsUrlFromItem(selectedMapEvent, selectedMapIndex === 0 ? mapsUrl : '');
 
   const [isMobileLocked, setIsMobileLocked] = useState(false);
   const [mobileProgress, setMobileProgress] = useState(0);
@@ -487,7 +507,7 @@ export default function TwainLoveWeddingTemplate({ preview = false, invitationDa
                           onClick={() => handleSelectEvent(selectedMapIndex, true)}
                           className="inline-flex items-center gap-1.5 rounded-full bg-white/90 border border-amber-200/80 px-2.5 py-0.5 text-[10px] font-semibold text-amber-900 shadow-xs cursor-pointer hover:bg-white active:scale-95 transition"
                         >
-                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500 animate-pulse" />
+                          <span className="h-1.5 w-1.5 rounded-full bg-amber-500" />
                           <span>{isRtl ? 'تغيير تلقائي (7 ثوانٍ)' : 'Auto (7s)'}</span>
                           <Pause className="h-2.5 w-2.5 text-amber-700" />
                         </button>
@@ -628,13 +648,16 @@ export default function TwainLoveWeddingTemplate({ preview = false, invitationDa
                     </div>
                   )}
 
-                  {/* GTA V Interactive Map on Mobile */}
+                  {/* Interactive Map on Mobile */}
                   <div className="mt-4">
                     <GtaMapViewer
-                      locationQuery={selectedMapEvent?.mapQuery || selectedMapEvent?.address || selectedMapEvent?.location || ''}
+                      locationQuery={eventMapsUrl || selectedMapEvent?.mapQuery || selectedMapEvent?.address || selectedMapEvent?.location || ''}
                       title={selectedMapEvent?.title ?? 'Event'}
-                      locationName={selectedMapEvent?.location}
-                      address={selectedMapEvent?.address}
+                      locationName={cleanDisplayLocation(selectedMapEvent?.location, '')}
+                      address={cleanDisplayLocation(selectedMapEvent?.address, '')}
+                      googleMapsUrl={eventMapsUrl}
+                      latitude={selectedMapIndex === 0 && !eventMapsUrl ? destination?.latitude : undefined}
+                      longitude={selectedMapIndex === 0 && !eventMapsUrl ? destination?.longitude : undefined}
                       theme="amber"
                       isRtl={isRtl}
                       heightClass="h-[250px] sm:h-[300px]"
@@ -754,13 +777,16 @@ export default function TwainLoveWeddingTemplate({ preview = false, invitationDa
                     })}
                   </div>
 
-                  {/* Right Column: Sticky GTA V Interactive Map */}
+                  {/* Right Column: Sticky Interactive Map */}
                   <div className="col-span-5 sticky top-24 min-w-0" dir={isRtl ? 'rtl' : 'ltr'}>
                     <GtaMapViewer
-                      locationQuery={selectedMapEvent?.mapQuery || selectedMapEvent?.address || selectedMapEvent?.location || ''}
+                      locationQuery={eventMapsUrl || selectedMapEvent?.mapQuery || selectedMapEvent?.address || selectedMapEvent?.location || ''}
                       title={selectedMapEvent?.title ?? 'Event'}
-                      locationName={selectedMapEvent?.location}
-                      address={selectedMapEvent?.address}
+                      locationName={cleanDisplayLocation(selectedMapEvent?.location, '')}
+                      address={cleanDisplayLocation(selectedMapEvent?.address, '')}
+                      googleMapsUrl={eventMapsUrl}
+                      latitude={selectedMapIndex === 0 && !eventMapsUrl ? destination?.latitude : undefined}
+                      longitude={selectedMapIndex === 0 && !eventMapsUrl ? destination?.longitude : undefined}
                       theme="amber"
                       isRtl={isRtl}
                       heightClass="h-[300px]"

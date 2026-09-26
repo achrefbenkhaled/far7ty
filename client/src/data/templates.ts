@@ -221,5 +221,14 @@ export const templates: Template[] = [
     image: '/templates/midnight-gala.png',
     category: 'Conference',
     description: 'A glamorous invitation experience for evening galas and upscale celebrations.'
+  },
+  {
+    id: 'petal-bloom-wedding',
+    title: 'Petal Bloom',
+    subtitle: 'A poetic peony cover that blooms open on tap and rains petals.',
+    accent: 'from-rose-300/25 via-pink-200/20 to-[#eee9e1]',
+    image: '/templates/petal-bloom-wedding.png',
+    category: 'Wedding',
+    description: 'A soft romantic wedding invitation: tap the blooming peony to reveal the couple’s names, date, and venue with drifting petals across the page.'
   }
 ];

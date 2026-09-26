@@ -1,6 +1,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { motion, useScroll, useTransform, AnimatePresence } from 'framer-motion';
 import GtaMapViewer from '../components/GtaMapViewer';
+import { invitationCoordinates, extractMapsUrlFromItem, cleanDisplayLocation } from '../lib/mapsLocation';
 import {
   Calendar,
   MapPin,
@@ -94,6 +95,7 @@ export default function EmmaJamesWeddingTemplate({ preview = false, invitationDa
   const venueName = (invitationData?.venue as string) || 'قصر الأفراح الملكي - القاعة الكبرى';
   const venueAddress = (invitationData?.address as string) || 'شارع النرجس، المدينة المنورة';
   const mapsUrl = (invitationData?.mapsUrl as string) || 'https://maps.google.com/?q=wedding+venue';
+  const destination = invitationCoordinates(invitationData);
   const customDescription = (invitationData?.description as string) || 
     'لفرحنا اليوم ندعوكم، بالطيب والورد نلاقيكم،\nوبالحب والخير نشكر تهانيكم';
 
@@ -107,6 +109,7 @@ export default function EmmaJamesWeddingTemplate({ preview = false, invitationDa
       location: 'بهو الاستقبال الملكي',
       address: venueAddress || 'شارع النرجس، المدينة المنورة',
       mapQuery: venueAddress ? `${venueName}, ${venueAddress}` : 'قصر الأفراح الملكي، المدينة المنورة',
+      mapsUrl: '',
     },
     {
       time: '08:00 م',
@@ -115,6 +118,7 @@ export default function EmmaJamesWeddingTemplate({ preview = false, invitationDa
       location: 'القاعة الكبرى - منصة الزفاف',
       address: venueAddress || 'شارع النرجس، المدينة المنورة',
       mapQuery: venueAddress ? `${venueName}, ${venueAddress}` : 'قصر الأفراح الملكي، المدينة المنورة',
+      mapsUrl: '',
     },
     {
       time: '09:30 م',
@@ -123,23 +127,30 @@ export default function EmmaJamesWeddingTemplate({ preview = false, invitationDa
       location: 'صالة الطعام والضيافة الملكية',
       address: venueAddress || 'شارع النرجس، المدينة المنورة',
       mapQuery: venueAddress ? `${venueName}, ${venueAddress}` : 'قصر الأفراح الملكي، المدينة المنورة',
+      mapsUrl: '',
     },
   ];
 
   const programList = Array.isArray(invitationData?.program) && invitationData.program.length > 0
-    ? (invitationData.program as Array<Record<string, string>>).map((item, idx) => ({
-        time: item.time || '',
-        title: item.title || '',
-        desc: item.desc || item.description || '',
-        location: item.location || (idx === 0 ? 'بهو الاستقبال' : idx === 1 ? 'القاعة الكبرى' : 'صالة الطعام الملكية'),
-        address: item.address || venueAddress,
-        mapQuery: item.mapQuery || item.address || item.location || `${venueName}, ${venueAddress}`,
-      }))
+    ? (invitationData.program as Array<Record<string, string>>).map((item, idx) => {
+        const itemUrl = extractMapsUrlFromItem(item, '');
+        const cleanLoc = cleanDisplayLocation(item.location, '');
+        return {
+          time: item.time || '',
+          title: item.title || '',
+          desc: item.desc || item.description || '',
+          location: cleanLoc || (idx === 0 ? 'بهو الاستقبال' : idx === 1 ? 'القاعة الكبرى' : 'صالة الطعام الملكية'),
+          address: item.address || venueAddress,
+          mapQuery: itemUrl || item.mapQuery || item.address || cleanLoc || `${venueName}, ${venueAddress}`,
+          mapsUrl: itemUrl,
+        };
+      })
     : defaultProgramList;
 
   const [selectedProgramIndex, setSelectedProgramIndex] = useState(0);
   const [showAllProgramsMobile, setShowAllProgramsMobile] = useState(false);
   const selectedProgram = programList[selectedProgramIndex] ?? programList[0];
+  const selectedProgramUrl = selectedProgram?.mapsUrl || (selectedProgramIndex === 0 ? mapsUrl : '');
 
   const [isMobileLocked, setIsMobileLocked] = useState(false);
   const [mobileProgress, setMobileProgress] = useState(0);
@@ -549,7 +560,7 @@ export default function EmmaJamesWeddingTemplate({ preview = false, invitationDa
           </motion.div>
         </section>
 
-        {/* ═══════════════ SECTION 3: WEDDING SCHEDULE / PROGRAM & GTA INTERACTIVE MAP ═══════════════ */}
+        {/* ═══════════════ SECTION 3: WEDDING SCHEDULE / PROGRAM & INTERACTIVE MAP ═══════════════ */}
         <section className="relative my-8 py-4">
           <motion.div
             initial={{ opacity: 0, y: 24 }}
@@ -597,7 +608,7 @@ export default function EmmaJamesWeddingTemplate({ preview = false, invitationDa
                     onClick={() => handleSelectProgram(selectedProgramIndex, true)}
                     className="inline-flex items-center gap-1.5 rounded-full bg-white/95 border border-[#F2D6DC] px-2.5 py-0.5 text-[10px] font-bold text-[#9E4A5A] shadow-xs cursor-pointer hover:bg-white active:scale-95 transition font-tajawal"
                   >
-                    <span className="h-1.5 w-1.5 rounded-full bg-[#C5924E] animate-pulse" />
+                    <span className="h-1.5 w-1.5 rounded-full bg-[#C5924E]" />
                     <span>تغيير تلقائي (7ث)</span>
                     <Pause className="h-2.5 w-2.5 text-[#9E4A5A]" />
                   </button>
@@ -728,13 +739,16 @@ export default function EmmaJamesWeddingTemplate({ preview = false, invitationDa
               </div>
             </div>
 
-            {/* GTA V Interactive Map on Mobile */}
+            {/* Interactive Map on Mobile */}
             <div className="mt-4">
               <GtaMapViewer
-                locationQuery={selectedProgram.mapQuery || selectedProgram.address || selectedProgram.location || `${venueName}, ${venueAddress}`}
+                locationQuery={selectedProgramUrl || selectedProgram.mapQuery || selectedProgram.address || selectedProgram.location || `${venueName}, ${venueAddress}`}
                 title={selectedProgram.title}
                 locationName={selectedProgram.location || venueName}
                 address={selectedProgram.address || venueAddress}
+                googleMapsUrl={selectedProgramUrl}
+                latitude={selectedProgramIndex === 0 && !selectedProgram?.mapsUrl ? destination?.latitude : undefined}
+                longitude={selectedProgramIndex === 0 && !selectedProgram?.mapsUrl ? destination?.longitude : undefined}
                 theme="burgundy"
                 isRtl={true}
                 heightClass="h-[240px] sm:h-[280px]"
@@ -845,8 +859,8 @@ export default function EmmaJamesWeddingTemplate({ preview = false, invitationDa
                       >
                         {isSelected ? (
                           <>
-                            <span className="h-2 w-2 rounded-full bg-[#9E4A5A] animate-ping" />
-                            محدد على خريطة GTA
+                            <MapPin className="h-3 w-3" />
+                            محدد على الخريطة
                           </>
                         ) : (
                           <>
@@ -861,13 +875,16 @@ export default function EmmaJamesWeddingTemplate({ preview = false, invitationDa
               })}
             </div>
 
-            {/* Right Column: Sticky GTA V Interactive Map */}
+            {/* Right Column: Sticky Interactive Map */}
             <div className="col-span-5 sticky top-24 min-w-0" dir="rtl">
               <GtaMapViewer
-                locationQuery={selectedProgram.mapQuery || selectedProgram.address || selectedProgram.location || `${venueName}, ${venueAddress}`}
+                locationQuery={selectedProgramUrl || selectedProgram.mapQuery || selectedProgram.address || selectedProgram.location || `${venueName}, ${venueAddress}`}
                 title={selectedProgram.title}
                 locationName={selectedProgram.location || venueName}
                 address={selectedProgram.address || venueAddress}
+                googleMapsUrl={selectedProgramUrl}
+                latitude={selectedProgramIndex === 0 && !selectedProgram?.mapsUrl ? destination?.latitude : undefined}
+                longitude={selectedProgramIndex === 0 && !selectedProgram?.mapsUrl ? destination?.longitude : undefined}
                 theme="burgundy"
                 isRtl={true}
                 heightClass="h-[300px]"

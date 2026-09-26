@@ -10,6 +10,7 @@ const loaders: Record<string, () => Promise<{ default: React.ComponentType<Templ
   'modern-bloom': () => import('../../templates/ModernBloomTemplate'),
   'corporate-luxe': () => import('../../templates/CorporateLuxeTemplate'),
   'midnight-gala': () => import('../../templates/MidnightGalaTemplate'),
+  'petal-bloom-wedding': () => import('../../templates/PetalBloomWeddingTemplate'),
 };
 
 interface PhoneInvitationEmbedProps {

@@ -16,20 +16,57 @@ enum InvitationStatus {
 }
 
 model Invitation {
-  id          String           @id @default(cuid())
-  slug        String           @unique
-  previewToken String          @unique @default(cuid())
-  templateId  String
-  status      InvitationStatus @default(DRAFT)
-  clientName  String
-  clientPhone String
-  clientEmail String?
-  eventType   String
-  data        Json
-  createdAt   DateTime         @default(now())
-  updatedAt   DateTime         @updatedAt
-  publishedAt DateTime?
+  id              String           @id @default(cuid())
+  slug            String           @unique
+  previewToken    String           @unique @default(cuid())
+  templateId      String
+  status          InvitationStatus @default(DRAFT)
+  clientName      String
+  clientPhone     String
+  clientEmail     String?
+  eventType       String
+  data            Json
+  createdAt       DateTime         @default(now())
+  updatedAt       DateTime         @updatedAt
+  publishedAt     DateTime?
+
+  // Memories / Gallery
+  memoriesEnabled     Boolean  @default(false)
+  guestUploadsEnabled Boolean  @default(true)
+  memoriesToken       String?  @unique
+  storageQuotaBytes   BigInt   @default(1073741824) // 1 GB default, configurable
+
+  media EventMedia[]
 
   @@index([status])
   @@index([updatedAt])
+}
+
+model User {
+  id           String       @id @default(cuid())
+  name         String
+  email        String       @unique
+  passwordHash String
+  createdAt    DateTime     @default(now())
+  media        EventMedia[]
+}
+
+model EventMedia {
+  id           String     @id @default(cuid())
+  invitationId String
+  invitation   Invitation @relation(fields: [invitationId], references: [id], onDelete: Cascade)
+  uploaderId   String
+  uploader     User       @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  objectKey    String     @unique
+  fileName     String
+  mimeType     String
+  fileSize     BigInt
+  width        Int?
+  height       Int?
+  status       String     @default("PENDING") // PENDING | APPROVED | REJECTED
+  uploadedAt   DateTime   @default(now())
+  moderatedAt  DateTime?
+
+  @@index([invitationId, status])
+  @@index([uploaderId])
 }

@@ -5,6 +5,8 @@ import { Header } from '../components/Header';
 import { ShareModal } from '../components/ShareModal';
 import { loadTemplateState, saveTemplateState } from '../lib/templateShareState';
 import { Moon, Calendar, MapPin, Sparkles } from 'lucide-react';
+import GtaMapViewer from '../components/GtaMapViewer';
+import { invitationCoordinates } from '../lib/mapsLocation';
 
 interface TemplateProps {
   preview?: boolean;
@@ -31,6 +33,7 @@ export default function MidnightGalaTemplate({ preview = false, invitationData }
     if (!invitationData) saveTemplateState('midnight-gala', data);
   }, [data, invitationData]);
 
+  const destination = invitationCoordinates(invitationData);
   const canEditTemplate = false;
 
   return (
@@ -163,6 +166,18 @@ export default function MidnightGalaTemplate({ preview = false, invitationData }
               </div>
             </div>
           </div>
+          <div className="mt-6 w-full max-w-2xl mx-auto">
+            <GtaMapViewer
+              locationQuery={data.venue || data.address}
+              title={data.venue}
+              locationName={data.venue}
+              address={data.address}
+              latitude={destination?.latitude}
+              longitude={destination?.longitude}
+              theme="dark"
+              isRtl={isRtl}
+            />
+          </div>
         </motion.div>
       </main>
 
@@ -177,3 +192,6 @@ export default function MidnightGalaTemplate({ preview = false, invitationData }
     </div>
   );
 }
+
+
+

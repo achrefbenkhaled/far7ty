@@ -31,9 +31,8 @@ export const VisitorFloatingContactWidget: React.FC<VisitorFloatingContactWidget
           >
             <div className="relative flex items-center justify-center">
               <Sparkles className="h-5 w-5 text-amber-400 animate-spin-slow" />
-              <span className="absolute -top-1 -right-1 flex h-2.5 w-2.5">
-                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75"></span>
-                <span className="relative inline-flex rounded-full h-2.5 w-2.5 bg-emerald-500"></span>
+              <span className="absolute -top-1 -right-1 flex h-2 w-2">
+                <span className="inline-flex rounded-full h-2 w-2 bg-emerald-500"></span>
               </span>
             </div>
             <span className="pr-1 text-xs font-serif font-bold tracking-wide text-amber-200">Order Design</span>
@@ -119,7 +118,7 @@ export const VisitorFloatingContactWidget: React.FC<VisitorFloatingContactWidget
 
             <div className="mt-3 flex items-center justify-between text-[10px] text-slate-400 border-t border-white/10 pt-2.5">
               <span className="flex items-center gap-1">
-                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400 animate-pulse"></span>
+                <span className="h-1.5 w-1.5 rounded-full bg-emerald-400"></span>
                 Fast Response
               </span>
               <span>Available 24/7</span>

@@ -1,4 +1,6 @@
 import React, { useEffect, useState, useRef, useMemo } from 'react';
+import GtaMapViewer from '../components/GtaMapViewer';
+import { invitationCoordinates } from '../lib/mapsLocation';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import { useLanguageTheme } from '../context/LanguageThemeContext';
 import {
@@ -8,7 +10,6 @@ import {
   Heart,
   Send,
   Crown,
-  Navigation,
   ChevronDown,
 } from 'lucide-react';
 
@@ -67,6 +68,7 @@ export default function GoldenGlowTemplate({ preview: _preview = false, invitati
   const venueName = (invitationData?.venue as string) || 'قصر الرياض الملكي - القاعة الكبرى';
   const venueAddress = (invitationData?.address as string) || 'طريق الملك فهد، حي النخيل، الرياض';
   const mapsUrl = (invitationData?.mapsUrl as string) || 'https://maps.google.com/?q=royal+palace';
+  const destination = invitationCoordinates(invitationData);
   const customDescription = (invitationData?.description as string) ||
     'بكل فخر واعتزاز، وبمشاعر تفيض سروراً وابتهاجاً، ندعوكم لمشاركتنا فرحة العمر في حفل زفافنا الميمون، لتكتمل سعادتنا بحضوركم الكريم.';
 
@@ -530,15 +532,19 @@ export default function GoldenGlowTemplate({ preview: _preview = false, invitati
           </p>
 
           <div className="mt-6 flex flex-col sm:flex-row items-center justify-center gap-3">
-            <a
-              href={mapsUrl}
-              target="_blank"
-              rel="noreferrer"
-              className="w-full sm:w-auto inline-flex items-center justify-center gap-2 rounded-full bg-gradient-to-r from-[#D4AF37] via-[#F5D77F] to-[#AA771C] px-6 py-3 text-xs font-bold uppercase tracking-wider text-[#1A1104] shadow-lg transition hover:scale-105"
-            >
-              <Navigation className="h-4 w-4" />
-              <span>{isArabic ? 'فتح في خرائط جوجل' : 'Open in Google Maps'}</span>
-            </a>
+            <div className="mt-6 w-full max-w-lg mx-auto">
+            <GtaMapViewer
+              locationQuery={venueAddress || venueName}
+              title={venueName}
+              locationName={venueName}
+              address={venueAddress}
+              googleMapsUrl={mapsUrl}
+              latitude={destination?.latitude}
+              longitude={destination?.longitude}
+              theme="amber"
+              isRtl={isArabic}
+            />
+          </div>
           </div>
         </motion.section>
 
@@ -657,3 +663,5 @@ export default function GoldenGlowTemplate({ preview: _preview = false, invitati
     </div>
   );
 }
+
+

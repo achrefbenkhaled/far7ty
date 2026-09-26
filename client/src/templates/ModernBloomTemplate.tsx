@@ -1,4 +1,7 @@
+import { useLanguageTheme } from '../context/LanguageThemeContext';
 import { useEffect, useRef, useState } from 'react';
+import GtaMapViewer from '../components/GtaMapViewer';
+import { invitationCoordinates } from '../lib/mapsLocation';
 import { motion, useScroll, useTransform } from 'framer-motion';
 import {
   Calendar,
@@ -6,7 +9,6 @@ import {
   Sparkles,
   Heart,
   Send,
-  ExternalLink,
   ChevronDown,
   Gift,
   Music,
@@ -83,6 +85,7 @@ function useCountdown(targetDateStr?: string) {
 }
 
 export default function ModernBloomTemplate({ preview: _preview = false, invitationData }: TemplateProps) {
+  const { isRtl } = useLanguageTheme();
   const containerRef = useRef<HTMLDivElement>(null);
   const { scrollYProgress } = useScroll({
     target: containerRef,
@@ -101,6 +104,7 @@ export default function ModernBloomTemplate({ preview: _preview = false, invitat
   const venueName = (invitationData?.venue as string) || '123 Anywhere St., Any City';
   const addressDetails = (invitationData?.address as string) || 'ST 12345, Grand Ballroom Suite';
   const mapsUrl = (invitationData?.mapsUrl as string) || 'https://maps.google.com/?q=123+Anywhere+St';
+  const destination = invitationCoordinates(invitationData);
   const description = (invitationData?.description as string) || "Let's celebrate this special day with joy, laughter, gold sparkle, and lots of cake!";
   const galleryImages = (Array.isArray(invitationData?.gallery) && invitationData.gallery.length > 0)
     ? (invitationData.gallery as string[])
@@ -407,14 +411,19 @@ export default function ModernBloomTemplate({ preview: _preview = false, invitat
                   <div className="text-[10px] font-semibold tracking-wider text-[#d8b067] uppercase">Venue & Location</div>
                   <div className="text-sm font-medium text-[#f4e6c7]">{venueName}</div>
                   <div className="text-xs text-[#ecddbc]/70">{addressDetails}</div>
-                  <a
-                    href={mapsUrl}
-                    target="_blank"
-                    rel="noreferrer"
-                    className="mt-3 inline-flex items-center gap-1.5 rounded-full border border-[#d7ba7d]/40 bg-[#d7ba7d]/10 px-3.5 py-1.5 text-xs font-semibold text-[#f4e6c7] transition hover:bg-[#d7ba7d]/20"
-                  >
-                    Get Directions <ExternalLink className="h-3 w-3 text-[#d8b067]" />
-                  </a>
+                  <div className="mt-6 w-full">
+                <GtaMapViewer
+                  locationQuery={addressDetails || venueName}
+                  title={venueName}
+                  locationName={venueName}
+                  address={addressDetails}
+                  googleMapsUrl={mapsUrl}
+                  latitude={destination?.latitude}
+                  longitude={destination?.longitude}
+                  theme="rose"
+                  isRtl={isRtl}
+                />
+              </div>
                 </div>
               </div>
             </div>
@@ -601,3 +610,4 @@ export default function ModernBloomTemplate({ preview: _preview = false, invitat
     </div>
   );
 }
+

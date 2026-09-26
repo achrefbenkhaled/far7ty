@@ -7,6 +7,7 @@ import ModernBloomTemplate from './ModernBloomTemplate';
 import CorporateLuxeTemplate from './CorporateLuxeTemplate';
 import MidnightGalaTemplate from './MidnightGalaTemplate';
 import MagicBirthdayTemplate from './MagicBirthdayTemplate';
+import PetalBloomWeddingTemplate from './PetalBloomWeddingTemplate';
 
 export interface TemplateComponentProps {
   variant?: string;
@@ -22,6 +23,7 @@ export {
   CorporateLuxeTemplate,
   MidnightGalaTemplate,
   MagicBirthdayTemplate,
+  PetalBloomWeddingTemplate,
 };
 
 export const templateMap: Record<string, ComponentType<TemplateComponentProps>> = {
@@ -32,6 +34,7 @@ export const templateMap: Record<string, ComponentType<TemplateComponentProps>> 
   'modern-bloom': ModernBloomTemplate,
   'corporate-luxe': CorporateLuxeTemplate,
   'midnight-gala': MidnightGalaTemplate,
+  'petal-bloom-wedding': PetalBloomWeddingTemplate,
 };
 
 export function getTemplateComponent(templateId: string): ComponentType<TemplateComponentProps> {
